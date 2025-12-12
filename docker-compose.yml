@@ -1,0 +1,90 @@
+# =====================================
+# Laravel 12 + Docker (MySQL + Redis)
+# =====================================
+
+services:
+  # PHP Laravel 應用
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: secscan-hub-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - laravel
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      # DB 設定（對應 mysql 服務）
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: secscan_hub
+      DB_USERNAME: secscan
+      DB_PASSWORD: secret
+      # Redis 設定（對應 redis 服務）
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: null
+      CACHE_DRIVER: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
+
+  # Nginx Web 伺服器
+  nginx:
+    image: nginx:alpine
+    container_name: secscan-hub-nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/var/www/html
+      - ./docker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - laravel
+    depends_on:
+      - app
+
+  # MySQL 資料庫
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: secscan_hub
+      MYSQL_USER: secscan
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    networks:
+      - laravel
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: secscan-hub-redis
+    restart: unless-stopped
+    command: [ "redis-server", "--appendonly", "yes" ]
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - laravel
+
+# 內部網路
+networks:
+  laravel:
+    driver: bridge
+
+# 持久化資料卷
+volumes:
+  mysql_data:
+  redis_data:
